@@ -1,0 +1,6 @@
+<% node['active_applications'].each_pair do |app_name, app_info|%>
+  check process alerts with pidfile /u/apps/<%= app_name %>/shared/tmp/pids/rails_rake.pid
+  start program = "/bin/su - deploy -c 'cd /u/apps/<%= app_name %>/current; RAILS_ENV=<%= app_info["rails_env"] %> bundle exec rake read_s3_notification'" with timeout 120 seconds
+  IF 5 RESTARTS WITHIN 5 CYCLES THEN timeout
+<% end %>
+
