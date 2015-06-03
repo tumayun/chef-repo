@@ -1,0 +1,71 @@
+# ------------------------------------------------------------------------------
+# Sample rails 3 config
+# ------------------------------------------------------------------------------
+
+# Set your full path to application.
+app_path = "<%= node['rails']['applications_root'] %>/<%= @name %>"
+
+# Set unicorn options
+worker_processes <%= @number_of_workers || 5 %>
+preload_app true
+timeout 30
+listen "#{app_path}/shared/tmp/sockets/unicorn.sock", :backlog => 2048
+<% if @unicorn_port %>
+listen <%= @unicorn_port %>, :tcp_nopush => true
+<% end %>
+
+# Spawn unicorn master worker for user apps (group: apps)
+user '<%= @deploy_user %>', '<%= @deploy_user %>'
+
+# Fill path to your app
+working_directory "#{app_path}/current"
+
+# Should be 'production' by default, otherwise use other env
+rails_env = ENV['RAILS_ENV'] || 'production'
+
+# Log everything to one file
+stderr_path "log/unicorn.log"
+stdout_path "log/unicorn.log"
+
+# Set master PID location
+pid "#{app_path}/shared/tmp/pids/unicorn.pid"
+
+before_exec do |server|
+  ENV["BUNDLE_GEMFILE"] = "#{app_path}/current/Gemfile"
+end
+
+before_fork do |server, worker|
+  ActiveRecord::Base.connection.disconnect! if defined? ActiveRecord::Base
+
+  sleep 10
+
+  old_pid = "#{server.config[:pid]}.oldbin"
+  if File.exists?(old_pid) && server.pid != old_pid
+    begin
+      Process.kill("QUIT", File.read(old_pid).to_i)
+    rescue Errno::ENOENT, Errno::ESRCH
+      # someone else did our job for us
+    end
+  end
+end
+
+after_fork do |server, worker|
+  ActiveRecord::Base.establish_connection if defined? ActiveRecord::Base
+end
+
+<%- if @copy_on_write %>
+# http://www.rubyenterpriseedition.com/faq.html#adapt_apps_for_cow
+if GC.respond_to?(:copy_on_write_friendly=)
+  GC.copy_on_write_friendly = true
+end
+<%- end %>
+
+<%- if @enable_stats %>
+# https://newrelic.com/docs/ruby/ruby-gc-instrumentation
+if GC.respond_to?(:enable_stats)
+  GC.enable_stats
+end
+if defined?(GC::Profiler) and GC::Profiler.respond_to?(:enable)
+  GC::Profiler.enable
+end
+<%- end %>

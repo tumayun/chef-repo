@@ -1,3 +1,4 @@
 /cookbooks/
 .ruby-version
 .ruby-gemset
+/nodes/
